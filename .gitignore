@@ -1,0 +1,43 @@
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Local Environment & Secrets
+.env
+.env.*.local
+*.pem
+*.key
+.aws/
+
+# Generated Runtime Data and Local Scan Reports (Preserves directory with .gitkeep)
+data/history/*.json
+data/latest_scan.json
+*.log
+
+# Frontend & Node
+node_modules/
+npm-debug.log*
+
+# IDE & OS specific files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

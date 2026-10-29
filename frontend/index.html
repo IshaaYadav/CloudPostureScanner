@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloud Posture Scanner | AWS Security & CIS Benchmark</title>
+  <meta name="description" content="Lightweight Cloud Security Posture Management (CSPM) tool for AWS discovering EC2 & S3 and evaluating CIS benchmarks.">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              500: '#0284c7',
+              600: '#0369a1',
+              700: '#075985',
+              900: '#0c4a6e',
+            },
+            dark: {
+              bg: '#0b0f19',
+              card: '#111827',
+              border: '#1f2937',
+              hover: '#1e293b'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body class="bg-[#0b0f19] text-slate-100 min-h-screen font-sans antialiased flex flex-col">
+
+  <!-- Top Navigation Header -->
+  <header class="border-b border-slate-800 bg-[#0f172a]/90 backdrop-blur sticky top-0 z-40 px-6 py-3.5 flex items-center justify-between shadow-lg">
+    <div class="flex items-center space-x-4">
+      <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20 text-white">
+        <i data-lucide="shield-check" class="w-6 h-6"></i>
+      </div>
+      <div>
+        <div class="flex items-center space-x-2">
+          <h1 class="text-lg font-bold tracking-tight text-white">Cloud Posture Scanner</h1>
+          <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-sky-950 text-sky-400 border border-sky-800">CSPM v1.0</span>
+        </div>
+        <p class="text-xs text-slate-400">AWS Resource Discovery & CIS Foundations Benchmark Audit Engine</p>
+      </div>
+    </div>
+
+    <!-- Right Header Actions -->
+    <div class="flex items-center space-x-3">
+      <!-- Mode Badge -->
+      <div id="mode-badge" class="flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-medium bg-amber-950/60 text-amber-300 border border-amber-800/60">
+        <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+        <span id="mode-text">Simulation Mode</span>
+      </div>
+
+      <!-- Account Badge -->
+      <div class="hidden sm:flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-mono bg-slate-900 border border-slate-800 text-slate-300">
+        <i data-lucide="cloud" class="w-3.5 h-3.5 text-slate-400"></i>
+        <span>Account: <span id="account-id-label" class="text-white font-semibold">123456789012</span></span>
+      </div>
+
+      <!-- Settings / AWS Connect Button -->
+      <button id="btn-open-config" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center space-x-1.5">
+        <i data-lucide="settings" class="w-3.5 h-3.5 text-sky-400"></i>
+        <span>AWS Setup</span>
+      </button>
+
+      <!-- Scan Now Button -->
+      <button id="btn-run-scan" class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white shadow-md shadow-sky-500/25 transition flex items-center space-x-2">
+        <i data-lucide="refresh-cw" id="scan-icon" class="w-3.5 h-3.5"></i>
+        <span id="scan-btn-label">Run Scan</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- Notification / Status Banner -->
+    <div id="status-banner" class="hidden rounded-xl border p-4 transition-all duration-300 flex items-start justify-between">
+      <div class="flex items-center space-x-3">
+        <i id="banner-icon" data-lucide="info" class="w-5 h-5 flex-shrink-0"></i>
+        <div class="text-sm font-medium" id="banner-text">Loading posture data...</div>
+      </div>
+      <button id="btn-close-banner" class="text-slate-400 hover:text-white">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <!-- Top Posture Metric Cards -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Compliance Score Card -->
+      <div class="bg-[#111827] border border-slate-800 rounded-2xl p-5 relative overflow-hidden shadow-sm">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">CIS Compliance Score</p>
+            <h2 id="metric-score" class="text-3xl font-extrabold text-white mt-1">--%</h2>
+          </div>
+          <div class="w-14 h-14 relative flex items-center justify-center">
+            <canvas id="scoreGaugeChart" width="56" height="56"></canvas>
+          </div>
+        </div>
+        <div class="mt-3 flex items-center text-xs space-x-2">
+          <span id="score-status-pill" class="px-2 py-0.5 rounded-md font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800">Calculating</span>
+          <span class="text-slate-400" id="metric-pass-fail-counts">0 Passed / 0 Total</span>
+        </div>
+      </div>
+
+      <!-- Critical Findings Card -->
+      <div class="bg-[#111827] border border-slate-800 rounded-2xl p-5 relative overflow-hidden shadow-sm">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Critical & High Vulnerabilities</p>
+            <h2 id="metric-critical-high" class="text-3xl font-extrabold text-rose-500 mt-1">0</h2>
+          </div>
+          <div class="w-11 h-11 rounded-xl bg-rose-950/60 border border-rose-800/60 flex items-center justify-center text-rose-400">
+            <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+          </div>
+        </div>
+        <div class="mt-3 flex items-center text-xs space-x-2">
+          <span id="critical-badge" class="px-2 py-0.5 rounded-md font-semibold bg-rose-950 text-rose-300 border border-rose-800">0 Critical</span>
+          <span id="high-badge" class="px-2 py-0.5 rounded-md font-semibold bg-orange-950 text-orange-300 border border-orange-800">0 High</span>
+        </div>
+      </div>
+
+      <!-- Discovered EC2 Instances -->
+      <div class="bg-[#111827] border border-slate-800 rounded-2xl p-5 relative overflow-hidden shadow-sm">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">EC2 Discovered</p>
+            <h2 id="metric-ec2-count" class="text-3xl font-extrabold text-white mt-1">0</h2>
+          </div>
+          <div class="w-11 h-11 rounded-xl bg-sky-950/60 border border-sky-800/60 flex items-center justify-center text-sky-400">
+            <i data-lucide="server" class="w-5 h-5"></i>
+          </div>
+        </div>
+        <div class="mt-3 flex items-center text-xs text-slate-400 space-x-1.5">
+          <i data-lucide="shield-alert" class="w-3.5 h-3.5 text-amber-400"></i>
+          <span id="metric-public-ec2">0 with Public IP</span>
+        </div>
+      </div>
+
+      <!-- Discovered S3 Buckets -->
+      <div class="bg-[#111827] border border-slate-800 rounded-2xl p-5 relative overflow-hidden shadow-sm">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">S3 Buckets Discovered</p>
+            <h2 id="metric-s3-count" class="text-3xl font-extrabold text-white mt-1">0</h2>
+          </div>
+          <div class="w-11 h-11 rounded-xl bg-indigo-950/60 border border-indigo-800/60 flex items-center justify-center text-indigo-400">
+            <i data-lucide="database" class="w-5 h-5"></i>
+          </div>
+        </div>
+        <div class="mt-3 flex items-center text-xs text-slate-400 space-x-1.5">
+          <i data-lucide="globe" class="w-3.5 h-3.5 text-rose-400"></i>
+          <span id="metric-public-s3">0 Publicly Accessible</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Scan Timing Bar -->
+    <div class="flex flex-wrap items-center justify-between text-xs text-slate-400 px-1 py-1">
+      <div class="flex items-center space-x-3">
+        <span class="flex items-center space-x-1.5">
+          <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-500"></i>
+          <span>Last Scan: <strong id="lbl-last-scan-time" class="text-slate-300">--</strong></span>
+        </span>
+        <span>•</span>
+        <span>Regions Scanned: <strong id="lbl-regions-scanned" class="text-slate-300">--</strong></span>
+      </div>
+      <div class="flex items-center space-x-2">
+        <span>Report Storage:</span>
+        <span id="lbl-header-storage-pill" class="px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-800 text-slate-300">Local-Storage</span>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs & Search/Filter Header -->
+    <div class="bg-[#111827] border border-slate-800 rounded-2xl p-4 shadow-sm">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+        <!-- Tabs -->
+        <nav class="flex space-x-2" aria-label="Tabs">
+          <button id="tab-btn-cis" onclick="switchTab('cis')" class="tab-btn px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center space-x-2 bg-sky-500/10 text-sky-400 border border-sky-500/30">
+            <i data-lucide="shield-alert" class="w-4 h-4"></i>
+            <span>CIS Benchmark Checks</span>
+            <span id="badge-cis-count" class="ml-1.5 px-2 py-0.5 rounded-full text-[10px] bg-sky-950 text-sky-300">0</span>
+          </button>
+          <button id="tab-btn-ec2" onclick="switchTab('ec2')" class="tab-btn px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition flex items-center space-x-2">
+            <i data-lucide="server" class="w-4 h-4"></i>
+            <span>EC2 Instances</span>
+            <span id="badge-ec2-count" class="ml-1.5 px-2 py-0.5 rounded-full text-[10px] bg-slate-800 text-slate-300">0</span>
+          </button>
+          <button id="tab-btn-s3" onclick="switchTab('s3')" class="tab-btn px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition flex items-center space-x-2">
+            <i data-lucide="database" class="w-4 h-4"></i>
+            <span>S3 Buckets</span>
+            <span id="badge-s3-count" class="ml-1.5 px-2 py-0.5 rounded-full text-[10px] bg-slate-800 text-slate-300">0</span>
+          </button>
+          <button id="tab-btn-storage" onclick="switchTab('storage')" class="tab-btn px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition flex items-center space-x-2">
+            <i data-lucide="hard-drive" class="w-4 h-4"></i>
+            <span>Amazon S3 Vault & History</span>
+          </button>
+        </nav>
+
+        <!-- Export Buttons -->
+        <div class="flex items-center space-x-2">
+          <a id="btn-export-csv" href="/export/csv?resource_type=cis" target="_blank" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center space-x-1.5">
+            <i data-lucide="download" class="w-3.5 h-3.5 text-slate-400"></i>
+            <span>Export CSV</span>
+          </a>
+          <a href="/report/latest" target="_blank" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center space-x-1.5">
+            <i data-lucide="file-code" class="w-3.5 h-3.5 text-sky-400"></i>
+            <span>Raw JSON API</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Tab 1: CIS Benchmark Audits Container -->
+      <div id="tab-content-cis" class="tab-panel pt-4 space-y-4">
+        <!-- CIS Filters Bar -->
+        <div class="flex flex-wrap items-center justify-between gap-3 text-xs">
+          <!-- Status Filter Pills -->
+          <div class="flex items-center space-x-1.5 bg-slate-900/80 p-1 rounded-xl border border-slate-800">
+            <button onclick="setCISStatusFilter('ALL')" id="cis-filter-all" class="cis-pill px-3 py-1 rounded-lg font-semibold bg-sky-500 text-white">All</button>
+            <button onclick="setCISStatusFilter('FAIL')" id="cis-filter-fail" class="cis-pill px-3 py-1 rounded-lg font-semibold text-slate-400 hover:text-rose-400">Failed Only</button>
+            <button onclick="setCISStatusFilter('PASS')" id="cis-filter-pass" class="cis-pill px-3 py-1 rounded-lg font-semibold text-slate-400 hover:text-emerald-400">Passed Only</button>
+            <button onclick="setCISStatusFilter('WARNING')" id="cis-filter-warn" class="cis-pill px-3 py-1 rounded-lg font-semibold text-slate-400 hover:text-amber-400">Warnings</button>
+            <button onclick="setCISStatusFilter('ERROR')" id="cis-filter-err" class="cis-pill px-3 py-1 rounded-lg font-semibold text-slate-400 hover:text-purple-400">Errors</button>
+          </div>
+
+          <!-- Category Filter & Search -->
+          <div class="flex items-center space-x-2 flex-grow sm:flex-grow-0">
+            <select id="cis-category-select" onchange="renderCISResults()" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-sky-500">
+              <option value="ALL">All Categories</option>
+              <option value="S3">S3 Storage</option>
+              <option value="EC2">EC2 / Networking</option>
+              <option value="IAM">IAM Identity</option>
+              <option value="Logging">Logging / CloudTrail</option>
+            </select>
+            <div class="relative w-full sm:w-64">
+              <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-500"></i>
+              <input type="text" id="cis-search-input" onkeyup="renderCISResults()" placeholder="Search check, resource, or rule..." class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500">
+            </div>
+          </div>
+        </div>
+
+        <!-- CIS Findings Cards Container -->
+        <div id="cis-results-list" class="space-y-3">
+          <!-- Dynamically populated via app.js -->
+        </div>
+      </div>
+
+      <!-- Tab 2: EC2 Instances Container -->
+      <div id="tab-content-ec2" class="tab-panel hidden pt-4 space-y-4">
+        <div class="flex items-center justify-between gap-3 text-xs">
+          <p class="text-slate-400">All discovered EC2 virtual machines with network exposure and security groups.</p>
+          <div class="relative w-64">
+            <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-500"></i>
+            <input type="text" id="ec2-search-input" onkeyup="renderEC2Table()" placeholder="Filter by ID, name, IP..." class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500">
+          </div>
+        </div>
+
+        <div class="overflow-x-auto rounded-xl border border-slate-800">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="bg-slate-900/90 text-slate-400 font-semibold uppercase tracking-wider border-b border-slate-800">
+              <tr>
+                <th class="py-3 px-4">Instance / Name</th>
+                <th class="py-3 px-4">Type</th>
+                <th class="py-3 px-4">Region</th>
+                <th class="py-3 px-4">State</th>
+                <th class="py-3 px-4">Public IP</th>
+                <th class="py-3 px-4">Private IP</th>
+                <th class="py-3 px-4">Associated Security Groups</th>
+              </tr>
+            </thead>
+            <tbody id="ec2-table-body" class="divide-y divide-slate-800">
+              <!-- Dynamically populated via app.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab 3: S3 Buckets Container -->
+      <div id="tab-content-s3" class="tab-panel hidden pt-4 space-y-4">
+        <div class="flex items-center justify-between gap-3 text-xs">
+          <p class="text-slate-400">All discovered S3 buckets, encryption configuration, and public access posture.</p>
+          <div class="relative w-64">
+            <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-500"></i>
+            <input type="text" id="s3-search-input" onkeyup="renderS3Table()" placeholder="Filter buckets..." class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500">
+          </div>
+        </div>
+
+        <div class="overflow-x-auto rounded-xl border border-slate-800">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="bg-slate-900/90 text-slate-400 font-semibold uppercase tracking-wider border-b border-slate-800">
+              <tr>
+                <th class="py-3 px-4">Bucket Name</th>
+                <th class="py-3 px-4">Region</th>
+                <th class="py-3 px-4">Encryption Status</th>
+                <th class="py-3 px-4">Access Policy</th>
+                <th class="py-3 px-4">Public Access Block</th>
+                <th class="py-3 px-4">Versioning</th>
+              </tr>
+            </thead>
+            <tbody id="s3-table-body" class="divide-y divide-slate-800">
+              <!-- Dynamically populated via app.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab 4: Storage & Audit History Container -->
+      <div id="tab-content-storage" class="tab-panel hidden pt-4 space-y-5">
+        <!-- Current Storage Card -->
+        <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div class="flex items-start space-x-3">
+            <div class="p-2.5 rounded-lg bg-sky-950 text-sky-400 border border-sky-800">
+              <i data-lucide="cloud-lightning" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-white flex items-center space-x-2">
+                <span>Storage Destination:</span>
+                <span id="storage-dest-badge" class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800">Local-Storage</span>
+              </h3>
+              <p class="text-xs text-slate-400 mt-1">Audit artifact location: <code id="storage-location-label" class="text-sky-300">./data/latest_scan.json</code></p>
+              <div class="mt-2 flex items-center space-x-3 text-xs text-slate-400">
+                <span class="flex items-center space-x-1 text-emerald-400">
+                  <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+                  <span>AES256 Server-Side Encryption</span>
+                </span>
+                <span>•</span>
+                <span id="scan-timestamp-label">Timestamp: --</span>
+              </div>
+            </div>
+          </div>
+          <button onclick="openConfigModal()" class="px-3.5 py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center space-x-1.5">
+            <i data-lucide="settings" class="w-3.5 h-3.5 text-sky-400"></i>
+            <span>Configure S3 Report Vault</span>
+          </button>
+        </div>
+
+        <!-- Scan History Table -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Historical Scans Log (from Amazon S3 & Local Storage)</h4>
+            <button onclick="loadHistoryData()" class="text-xs text-sky-400 hover:text-sky-300 flex items-center space-x-1">
+              <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+              <span>Refresh History</span>
+            </button>
+          </div>
+          <div class="overflow-x-auto rounded-xl border border-slate-800">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="bg-slate-900/90 text-slate-400 font-semibold uppercase tracking-wider border-b border-slate-800">
+                <tr>
+                  <th class="py-2.5 px-4">Scan ID</th>
+                  <th class="py-2.5 px-4">Timestamp (UTC)</th>
+                  <th class="py-2.5 px-4">Mode</th>
+                  <th class="py-2.5 px-4">Status</th>
+                  <th class="py-2.5 px-4">Compliance Score</th>
+                  <th class="py-2.5 px-4">EC2 / S3 Counts</th>
+                  <th class="py-2.5 px-4">Storage Destination</th>
+                </tr>
+              </thead>
+              <tbody id="history-table-body" class="divide-y divide-slate-800">
+                <!-- Dynamically populated via app.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- AWS Setup / Configuration Modal -->
+  <div id="config-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#111827] border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center space-x-2">
+          <i data-lucide="settings" class="w-5 h-5 text-sky-400"></i>
+          <h3 class="text-base font-bold text-white">AWS Configuration & S3 Storage</h3>
+        </div>
+        <button onclick="closeConfigModal()" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-300 space-y-1">
+        <p class="font-semibold text-white flex items-center space-x-1.5">
+          <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i>
+          <span>Secure Authentication Practice</span>
+        </p>
+        <p class="text-slate-400 leading-relaxed">
+          Cloud Posture Scanner uses your local AWS CLI named profiles or standard credential provider chain (IAM role, environment variables). Permanent AWS secret keys are never accepted or entered through the UI.
+        </p>
+      </div>
+
+      <form id="aws-config-form" class="space-y-3 text-xs" onsubmit="handleConfigSubmit(event)">
+        <!-- Simulation Mode Switcher -->
+        <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+          <div>
+            <span class="font-semibold text-white block">Offline Simulation / Demo Mode</span>
+            <span class="text-slate-400 text-[11px]">Toggle on to run without AWS credentials or charges</span>
+          </div>
+          <input type="checkbox" id="cfg-use-mock" class="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 bg-slate-800 border-slate-700">
+        </div>
+
+        <div>
+          <label class="block font-medium text-slate-300 mb-1">AWS CLI Named Profile (Optional)</label>
+          <input type="text" id="cfg-profile" placeholder="e.g. posture-dev (leave blank for standard chain)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-sky-500 font-mono">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-medium text-slate-300 mb-1">Default Region</label>
+            <input type="text" id="cfg-region" value="ap-south-1" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-sky-500 font-mono">
+          </div>
+          <div>
+            <label class="block font-medium text-slate-300 mb-1">Scan Regions (comma-separated)</label>
+            <input type="text" id="cfg-scan-regions" value="ap-south-1" placeholder="ap-south-1,us-east-1" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-sky-500 font-mono">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-medium text-slate-300 mb-1">Dedicated Private S3 Report Bucket</label>
+          <input type="text" id="cfg-s3-bucket" placeholder="e.g. my-private-posture-audit-bucket" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-sky-500 font-mono">
+          <p class="text-[11px] text-slate-500 mt-1">If blank, scans are stored in local development storage (data/history/).</p>
+        </div>
+
+        <div class="pt-3 border-t border-slate-800 flex justify-end space-x-2">
+          <button type="button" onclick="closeConfigModal()" class="px-4 py-2 rounded-xl text-slate-300 hover:bg-slate-800 transition">Cancel</button>
+          <button type="submit" id="btn-save-config" class="px-5 py-2 rounded-xl font-semibold bg-sky-500 hover:bg-sky-400 text-white shadow-md shadow-sky-500/20 transition flex items-center space-x-1.5">
+            <i data-lucide="check" class="w-3.5 h-3.5"></i>
+            <span>Test Connection & Save</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-24 opacity-0 transition-all duration-300 bg-slate-900 border border-slate-700 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 text-xs">
+    <i id="toast-icon" data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i>
+    <span id="toast-message">Notification</span>
+  </div>
+
+  <footer class="border-t border-slate-800 py-4 px-6 text-center text-xs text-slate-500 mt-auto">
+    <span>Cloud Posture Scanner • Built with FastAPI, Boto3 & CIS AWS Foundations Benchmark • Free-Tier Safe</span>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

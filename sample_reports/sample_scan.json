@@ -1,0 +1,146 @@
+{
+  "scan_id": "demo-scan-01",
+  "aws_account_id": "123456789012",
+  "start_time": "2026-10-30T10:00:00+00:00",
+  "completion_time": "2026-10-30T10:00:45+00:00",
+  "timestamp": "2026-10-30T10:00:45+00:00",
+  "status": "COMPLETED",
+  "mode": "DEMO_SIMULATION",
+  "target_regions": [
+    "ap-south-1",
+    "us-east-1"
+  ],
+  "instances": [
+    {
+      "instance_id": "i-0a89d71c42f01234a",
+      "name": "Prod-WebServer-01",
+      "instance_type": "t2.micro",
+      "region": "us-east-1",
+      "state": "running",
+      "public_ip": "54.210.12.34",
+      "private_ip": "172.31.16.45",
+      "vpc_id": "vpc-0a1b2c3d4e5f67890",
+      "security_groups": [
+        {
+          "group_id": "sg-0192837465abc1234",
+          "group_name": "web-dmz-sg",
+          "allows_all_ssh": true,
+          "allows_all_rdp": false,
+          "open_inbound_rules": [
+            "TCP 22 from 0.0.0.0/0 (SSH - HIGH RISK)",
+            "TCP 80 from 0.0.0.0/0 (HTTP)",
+            "TCP 443 from 0.0.0.0/0 (HTTPS)"
+          ]
+        }
+      ],
+      "launch_time": "2026-09-15T08:30:00Z"
+    }
+  ],
+  "buckets": [
+    {
+      "bucket_name": "company-public-marketing-assets",
+      "region": "us-east-1",
+      "creation_date": "2026-01-12T10:00:00Z",
+      "encryption_status": "SSE-S3 (AES256)",
+      "access_policy": "Public",
+      "public_access_block": {
+        "block_public_acls": false,
+        "ignore_public_acls": false,
+        "block_public_policy": false,
+        "restrict_public_buckets": false,
+        "configured": true
+      },
+      "has_public_policy": true,
+      "has_public_acl": true,
+      "versioning_status": "Disabled",
+      "evidence_notes": "Public Access Block partially or fully disabled; Bucket policy grants public access"
+    }
+  ],
+  "cis_results": [
+    {
+      "check_id": "CIS-2.1.1",
+      "title": "Ensure S3 Bucket Access is Not Public",
+      "category": "S3",
+      "severity": "CRITICAL",
+      "status": "FAIL",
+      "resource_id": "company-public-marketing-assets",
+      "resource_type": "AWS::S3::Bucket",
+      "evidence": "Bucket 'company-public-marketing-assets' in region 'us-east-1' is publicly accessible. Findings: public bucket policy allows world access; ACL grants public Read/Write permissions; Public Access Block is disabled or incomplete.",
+      "remediation": "aws s3api put-public-access-block --bucket company-public-marketing-assets --public-access-block-configuration \"BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true\"",
+      "reference": "CIS AWS Foundations Benchmark v1.4.0 - Section 2.1.1 (v3.0.0 - 2.1.4)",
+      "timestamp": "2026-10-30T10:00:45+00:00"
+    },
+    {
+      "check_id": "CIS-2.1.2",
+      "title": "Ensure S3 Bucket Default Encryption is Enabled",
+      "category": "S3",
+      "severity": "HIGH",
+      "status": "PASS",
+      "resource_id": "company-public-marketing-assets",
+      "resource_type": "AWS::S3::Bucket",
+      "evidence": "Bucket 'company-public-marketing-assets' is encrypted at rest using SSE-S3 (AES256).",
+      "remediation": "No remediation necessary.",
+      "reference": "CIS AWS Foundations Benchmark v1.4.0 - Section 2.1.2 (v3.0.0 - 2.1.1)",
+      "timestamp": "2026-10-30T10:00:45+00:00"
+    },
+    {
+      "check_id": "CIS-1.5",
+      "title": "Ensure MFA is Enabled for the 'root' User Account",
+      "category": "IAM",
+      "severity": "CRITICAL",
+      "status": "FAIL",
+      "resource_id": "arn:aws:iam::123456789012:root",
+      "resource_type": "AWS::IAM::RootAccount",
+      "evidence": "The root user account for AWS account 123456789012 does NOT have Multi-Factor Authentication (MFA) enabled.",
+      "remediation": "Sign into the AWS Management Console as the root user. Navigate to IAM > Security Credentials > Assign MFA Device to configure a virtual or hardware token.",
+      "reference": "CIS AWS Foundations Benchmark v1.4.0 - Section 1.5 (v3.0.0 - 1.5)",
+      "timestamp": "2026-10-30T10:00:45+00:00"
+    },
+    {
+      "check_id": "CIS-3.1",
+      "title": "Ensure CloudTrail is Enabled Across All Regions",
+      "category": "Logging",
+      "severity": "HIGH",
+      "status": "FAIL",
+      "resource_id": "arn:aws:cloudtrail::123456789012:trail/*",
+      "resource_type": "AWS::CloudTrail::Trail",
+      "evidence": "No active multi-region CloudTrail was found logging management events across all regions. Actions in unmonitored regions cannot be audited.",
+      "remediation": "aws cloudtrail create-trail --name multi-region-security-trail --s3-bucket-name <your-audit-bucket> --is-multi-region-trail && aws cloudtrail start-logging --name multi-region-security-trail",
+      "reference": "CIS AWS Foundations Benchmark v1.4.0 - Section 3.1 (v3.0.0 - 3.1)",
+      "timestamp": "2026-10-30T10:00:45+00:00"
+    },
+    {
+      "check_id": "CIS-4.1",
+      "title": "Ensure No Security Groups Allow Ingress to SSH (Port 22) from 0.0.0.0/0 or ::/0",
+      "category": "EC2 / Networking",
+      "severity": "HIGH",
+      "status": "FAIL",
+      "resource_id": "sg-0192837465abc1234",
+      "resource_type": "AWS::EC2::SecurityGroup",
+      "evidence": "Security Group 'web-dmz-sg' (sg-0192837465abc1234) allows inbound TCP port 22 (SSH) from unrestricted sources (0.0.0.0/0 or ::/0). Exposed to internet-wide brute-force attacks.",
+      "remediation": "aws ec2 revoke-security-group-ingress --group-id sg-0192837465abc1234 --protocol tcp --port 22 --cidr 0.0.0.0/0",
+      "reference": "CIS AWS Foundations Benchmark v1.4.0 - Section 4.1 (v3.0.0 - 5.1)",
+      "timestamp": "2026-10-30T10:00:45+00:00"
+    }
+  ],
+  "summary": {
+    "total_checks": 5,
+    "passed_checks": 1,
+    "failed_checks": 4,
+    "warning_checks": 0,
+    "error_checks": 0,
+    "unknown_checks": 0,
+    "compliance_score_percent": 20.0,
+    "critical_failures": 2,
+    "high_failures": 2,
+    "medium_failures": 0,
+    "low_failures": 0
+  },
+  "scan_errors": [],
+  "storage": {
+    "destination": "AWS-S3",
+    "location": "s3://my-private-posture-bucket/scans/2026/10/30/demo-scan-01.json",
+    "status": "SUCCESS",
+    "encrypted": true
+  }
+}

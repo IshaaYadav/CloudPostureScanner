@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  cloud-posture-scanner:
+    build: .
+    container_name: cloud-posture-scanner
+    ports:
+      - "8000:8000"
+    environment:
+      - AWS_PROFILE=${AWS_PROFILE:-}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN:-}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-ap-south-1}
+      - AWS_SCAN_REGIONS=${AWS_SCAN_REGIONS:-ap-south-1}
+      - AWS_POSTURE_BUCKET=${AWS_POSTURE_BUCKET:-}
+      - USE_MOCK=${USE_MOCK:-false}
+    volumes:
+      - ./data:/app/data
+      - ~/.aws:/root/.aws:ro
+    restart: unless-stopped

@@ -31,38 +31,6 @@ Cloud misconfigurations—such as publicly accessible S3 storage buckets, unencr
 
 ## 3. Architecture
 
-```mermaid
-flowchart TD
-    User([Security Engineer / DevSecOps]) -->|Browser UI / HTTP| WebUI["Web Dashboard (Tailwind CSS + Chart.js)"]
-    WebUI -->|REST API| API["FastAPI Application (Port 8000)"]
-    
-    subgraph ScannerCore ["Cloud Posture Scanner Core"]
-        API --> Auth["AWS Client Manager (STS Identity & Profiles)"]
-        API --> DiscEC2["EC2 & Security Group Discovery"]
-        API --> DiscS3["S3 Bucket Discovery & Encryption Auditor"]
-        
-        DiscEC2 --> Benchmark["CIS Benchmark Engine (Rules Evaluation)"]
-        DiscS3 --> Benchmark
-        
-        Benchmark --> Storage["S3 Storage Service (Safe JSON Serializer)"]
-    end
-    
-    subgraph TargetAWS ["Target AWS Account"]
-        Auth -.->|sts:GetCallerIdentity| STS["AWS STS"]
-        DiscEC2 -.->|ec2:DescribeInstances| EC2["Amazon EC2 & Security Groups"]
-        DiscS3 -.->|s3:ListAllMyBuckets / s3:Get*| S3["Amazon S3 Buckets"]
-        Storage -->|s3:PutObject (AES256 Encrypted)| S3Vault["Private Audit Bucket (scans/YYYY/MM/DD/*.json)"]
-    end
-    
-    subgraph LocalDev ["Offline / Local Development Mode"]
-        DiscEC2 -.-> MockEC2["Simulated EC2 Inventory"]
-        DiscS3 -.-> MockS3["Simulated S3 Inventory"]
-        Storage --> LocalDisk["Local Development Disk (data/history/)"]
-    end
-```
-
----
-
 ## 4. Technology Stack
 
 - **Backend Framework:** Python 3.10+ / [FastAPI](https://fastapi.tiangolo.com/) (Async ASGI REST API)
